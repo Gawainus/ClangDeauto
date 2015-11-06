@@ -40,7 +40,7 @@ static llvm::cl::OptionCategory ClangDeautoCategory("clang-deauto options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
 // A help message for this specific tool can be added afterwards.
-static cl::extrahelp MoreHelp("\nContact Yumen for more help.");
+static cl::extrahelp MoreHelp("\nContact Yumen if any questions or bugs.\n");
 
 int main(int argc, const char **argv) {
   CommonOptionsParser OptionsParser(argc, argv, ClangDeautoCategory);
@@ -50,7 +50,7 @@ int main(int argc, const char **argv) {
 }
 
 
-/*
+
 namespace {
     cl::opt<string> BuildPath(
             cl::Positional,
