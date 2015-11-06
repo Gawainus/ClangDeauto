@@ -1,0 +1,10 @@
+add_clang_executable(clang-deauto
+    ClangDeauto.cpp
+)
+target_link_libraries(clang-typo
+    clangEdit
+    clangTooling
+    clangBasic
+    clangAST
+    clangASTMatchers
+    )
