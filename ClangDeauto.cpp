@@ -42,15 +42,6 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 // A help message for this specific tool can be added afterwards.
 static cl::extrahelp MoreHelp("\nContact Yumen if any questions or bugs.\n");
 
-int main(int argc, const char **argv) {
-  CommonOptionsParser OptionsParser(argc, argv, ClangDeautoCategory);
-  ClangTool Tool(OptionsParser.getCompilations(),
-                 OptionsParser.getSourcePathList());
-  return Tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
-}
-
-
-
 namespace {
     cl::opt<string> BuildPath(
             cl::Positional,
@@ -59,6 +50,7 @@ namespace {
             cl::Positional,
             cl::desc("<source0> [... <sourceN>]"),
             cl::OneOrMore);
+
     cl::opt<string> OriginalMethodName("method", cl::ValueRequired,
                                        cl::desc("Method name to replace"));
     cl::opt<string> ClassName("class", cl::ValueRequired,
@@ -69,13 +61,15 @@ namespace {
                                   cl::ValueRequired);
 
 
-    class ChangeMemberDecl : public ast_matchers::MatchFinder::MatchCallback{
+    class ChangeMemberDecl : public MatchFinder::MatchCallback{
         tooling::Replacements *Replace;
     public:
         ChangeMemberDecl(tooling::Replacements *Replace) : Replace(Replace) {}
+
         virtual void run(const ast_matchers::MatchFinder::MatchResult &Result) {
             const CXXMethodDecl *method =
                     Result.Nodes.getNodeAs<CXXMethodDecl>("methodDecl");
+
             Replace->insert(Replacement(
                     *Result.SourceManager,
                     CharSourceRange::getTokenRange(
@@ -83,20 +77,48 @@ namespace {
         }
     };
 
-    class ChangeMemberCall : public ast_matchers::MatchFinder::MatchCallback{
+    class ChangeMemberCall : public MatchFinder::MatchCallback{
         tooling::Replacements *Replace;
     public:
         ChangeMemberCall(tooling::Replacements *Replace) : Replace(Replace) {}
+
         virtual void run(const ast_matchers::MatchFinder::MatchResult &Result) {
             const MemberExpr *member =
                     Result.Nodes.getNodeAs<MemberExpr>("member");
+
             Replace->insert(Replacement(
                     *Result.SourceManager,
                     CharSourceRange::getTokenRange(
                             SourceRange(member->getMemberLoc())), NewMethodName));
         }
     };
+
+    class AutoTypeSpecifierInstance : public MatchFinder::MatchCallback {
+      tooling::Replacements *Replace;
+
+    public:
+      AutoTypeSpecifierInstance(tooling::Replacements *Replace) : Replace(Replace) {}
+
+      virtual void run (const MatchFinder::MatchResult &Result) {
+        const AutoType *autoInstance = Result.Nodes.getNodeAs<AutoType>("autoInstance");
+
+        Replace->insert(Replacement(
+                  *Result.SourceManager,
+                  CharSourceRange::getTokenRange(
+                    SourceRange(autoInstance->)
+                  )
+        ))
+      }
+    }
 }
+/*
+int main(int argc, const char **argv) {
+  CommonOptionsParser OptionsParser(argc, argv, ClangDeautoCategory);
+  ClangTool Tool(OptionsParser.getCompilations(),
+                 OptionsParser.getSourcePathList());
+  return Tool.run(newFrontendActionFactory<clang::SyntaxOnlyAction>().get());
+}
+*/
 
 int main(int argc, char **argv) {
     cl::ParseCommandLineOptions(argc, argv);
@@ -104,27 +126,34 @@ int main(int argc, char **argv) {
     std::unique_ptr<CompilationDatabase> Compilations (
             CompilationDatabase::loadFromDirectory(
                     BuildPath, ErrorMessage));
-    if (!Compilations)
-        report_fatal_error(ErrorMessage);
+    if (!Compilations) {
+      report_fatal_error(ErrorMessage);
+    }
 
     RefactoringTool Tool(*Compilations, SourcePaths);
+
+    // Ast match finder
     ast_matchers::MatchFinder Finder;
+
+    // make callbacks and attach them to the RefactoringTool Instance
     ChangeMemberDecl Callback1(&Tool.getReplacements());
     ChangeMemberCall Callback2(&Tool.getReplacements());
 
+/*
     Finder.addMatcher(
             recordDecl(
                     allOf(hasMethod(id("methodDecl",
-                                       methodDecl(hasName(OriginalMethodName)))),
+                                       cxxMethodDecl(hasName(OriginalMethodName)))),
                           isSameOrDerivedFrom(hasName(ClassName)))),
             &Callback1);
+            */
     Finder.addMatcher(
-            memberCallExpr(
+            cxxMemberCallExpr(
                     callee(id("member",
                               memberExpr(member(hasName(OriginalMethodName))))),
                     thisPointerType(recordDecl(
                             isSameOrDerivedFrom(hasName(ClassName))))),
             &Callback2);
+
     return Tool.runAndSave(newFrontendActionFactory(&Finder).get());
 }
-*/
