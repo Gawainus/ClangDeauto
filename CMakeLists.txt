@@ -1,7 +1,7 @@
 add_clang_executable(clang-deauto
     ClangDeauto.cpp
 )
-target_link_libraries(clang-typo
+target_link_libraries(clang-deauto
     clangEdit
     clangTooling
     clangBasic
