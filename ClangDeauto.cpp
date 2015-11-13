@@ -57,12 +57,22 @@ namespace {
     public:
       virtual void run (const MatchFinder::MatchResult &Result) {
         if (const AutoType *AT = Result.Nodes.getNodeAs<AutoType>("autoType")) {
-          llvm::outs() << AT->isDeduced() << "\n";
-          llvm::outs() << AT->isSugared() << "\n";
-          llvm::outs() << AT->getDeducedType().getAsString() << "\n";
+          llvm::outs() << "Is Deduced? " << AT->isDeduced() << "\n";
+          llvm::outs() << "Is Sugared? " << AT->isSugared() << "\n";
+          llvm::outs() << "Deduced Type: " << AT->getDeducedType().getAsString() << "\n";
 
         }
+      }
+    };
 
+    class DeclCallback : public MatchFinder::MatchCallback {
+    public:
+      virtual void run (const MatchFinder::MatchResult &Result) {
+        if (const NamedDecl *ND = Result.Nodes.getNodeAs<NamedDecl>("namedDecl")) {
+          llvm::outs() << "Name: " << ND->getNameAsString() << "\n";
+          llvm::outs() << "Qualified Name: " << ND->getQualifiedNameAsString() << "\n";
+
+        }
       }
     };
 }
@@ -73,10 +83,14 @@ int main(int argc, const char **argv) {
                  OptionsParser.getSourcePathList());
 
   AutoTypeCallback autoTypeCB;
+  DeclCallback declCB;
+
   TypeMatcher atm = autoType().bind("autoType");
+  DeclarationMatcher dm = namedDecl().bind("namedDecl");
 
   MatchFinder Finder;
   Finder.addMatcher(atm, &autoTypeCB);
+  Finder.addMatcher(dm, &declCB);
 
   return Tool.run(newFrontendActionFactory(&Finder).get());
 }
