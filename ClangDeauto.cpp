@@ -52,45 +52,68 @@ namespace {
             cl::OneOrMore);
 
 
-    class AutoTypeCallback : public MatchFinder::MatchCallback {
+
+    class DeautoCallback : public MatchFinder::MatchCallback {
 
     public:
-      virtual void run (const MatchFinder::MatchResult &Result) {
-        if (const AutoType *AT = Result.Nodes.getNodeAs<AutoType>("autoType")) {
-          llvm::outs() << "Is Deduced? " << AT->isDeduced() << "\n";
-          llvm::outs() << "Is Sugared? " << AT->isSugared() << "\n";
-          llvm::outs() << "Deduced Type: " << AT->getDeducedType().getAsString() << "\n";
-
-        }
+      DeautoCallback(tooling::Replacements * replace) : Replace(replace) {
+        m_currType = "Not_Deduced";
       }
-    };
-
-    class DeclCallback : public MatchFinder::MatchCallback {
-    public:
       virtual void run (const MatchFinder::MatchResult &Result) {
+
         if (const ValueDecl *VD = Result.Nodes.getNodeAs<ValueDecl>("valueDecl")) {
-          llvm::outs() << "Name: " << VD->getNameAsString() << "\n";
-          llvm::outs() << "Type: " << VD->getType().getAsString() << "\n";
+          string name = VD->getNameAsString();
+          string type = VD->getType().getAsString();
+          if (name.compare("main") != 0) {
+            llvm::outs() << "Value Decl" << "\n";
+            llvm::outs() << "Name: " << name << "\n";
+            llvm::outs() << "Type: " << type << "\n";
+            m_currType = type;
+          }
+        }
 
+        if (const TypeLoc *TL = Result.Nodes.getNodeAs<TypeLoc>("typeLoc")) {
+          string type = TL->getType().getAsString();
+          if (type.compare("auto") == 0) {
+            llvm::outs() << type << "\n";
+            llvm::outs() << TL->getSourceRange().getBegin().printToString(*Result.SourceManager) << "\n";
+            Replace->insert(
+                      Replacement(
+                        *Result.SourceManager,
+                        CharSourceRange::getTokenRange(
+                          TL->getSourceRange()
+                        ),
+                        m_currType
+                        )
+            );
+            llvm::outs() << "\n";
+          }
         }
       }
+
+    private:
+      string m_currType;
+      tooling::Replacements *Replace;
     };
-}
+
+} // end of anonymous namespace
 
 int main(int argc, const char **argv) {
   CommonOptionsParser OptionsParser(argc, argv, ClangDeautoCategory);
-  ClangTool Tool(OptionsParser.getCompilations(),
+
+  RefactoringTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
 
-  AutoTypeCallback autoTypeCB;
-  DeclCallback declCB;
+  DeautoCallback deautoCB(&Tool.getReplacements());
 
   TypeMatcher atm = autoType().bind("autoType");
-  DeclarationMatcher dm = valueDecl().bind("valueDecl");
+  TypeLocMatcher tlm = typeLoc(isExpansionInMainFile()).bind("typeLoc");
+  DeclarationMatcher vm = valueDecl(isExpansionInMainFile()).bind("valueDecl");
 
   MatchFinder Finder;
-  Finder.addMatcher(atm, &autoTypeCB);
-  Finder.addMatcher(dm, &declCB);
+  Finder.addMatcher(atm, &deautoCB);
+  Finder.addMatcher(tlm, &deautoCB);
+  Finder.addMatcher(vm, &deautoCB);
 
-  return Tool.run(newFrontendActionFactory(&Finder).get());
+  return Tool.runAndSave(newFrontendActionFactory(&Finder).get());
 }
