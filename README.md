@@ -1,5 +1,21 @@
 This is a clang tool that reports auto typed declaration in C++ code.
 
+Current Issues:
+1. The autotype matcher keeps returning null type
+2. Declaration matcher does not contain information about types
+
+
+Test Plan:
+
+Clang has the unit test facilities, which I have not looked at. For next week, I would like to make it work first which means for trivial auto type specifier, my tool can deduce the underlying type.
+
+It seems that clang has its own fashion of unittesting based on the in-package tests for tools like unittests/ASTMatchers.
+
+Possible types
+1. built-in types: int, double, etc.
+2. Templated types.
+3. Pointers
+4. std::function
 
 References:
 

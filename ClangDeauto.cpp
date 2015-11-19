@@ -68,9 +68,9 @@ namespace {
     class DeclCallback : public MatchFinder::MatchCallback {
     public:
       virtual void run (const MatchFinder::MatchResult &Result) {
-        if (const NamedDecl *ND = Result.Nodes.getNodeAs<NamedDecl>("namedDecl")) {
-          llvm::outs() << "Name: " << ND->getNameAsString() << "\n";
-          llvm::outs() << "Qualified Name: " << ND->getQualifiedNameAsString() << "\n";
+        if (const ValueDecl *VD = Result.Nodes.getNodeAs<ValueDecl>("valueDecl")) {
+          llvm::outs() << "Name: " << VD->getNameAsString() << "\n";
+          llvm::outs() << "Type: " << VD->getType().getAsString() << "\n";
 
         }
       }
@@ -86,7 +86,7 @@ int main(int argc, const char **argv) {
   DeclCallback declCB;
 
   TypeMatcher atm = autoType().bind("autoType");
-  DeclarationMatcher dm = namedDecl().bind("namedDecl");
+  DeclarationMatcher dm = valueDecl().bind("valueDecl");
 
   MatchFinder Finder;
   Finder.addMatcher(atm, &autoTypeCB);
