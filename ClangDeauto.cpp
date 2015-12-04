@@ -51,14 +51,15 @@ namespace {
             cl::desc("<source0> [... <sourceN>]"),
             cl::OneOrMore);
 
+    static cl::opt<bool>
+    Report("report", cl::desc("Report the results to std output without saving"),
+                    cl::cat(ClangDeautoCategory));
 
-
-    class DeautoCallback : public MatchFinder::MatchCallback {
+    class DeautoReportCallback : public MatchFinder::MatchCallback {
 
     public:
-      DeautoCallback(tooling::Replacements * replace) : Replace(replace) {
-        m_currType = "Not_Deduced";
-      }
+      DeautoReportCallback() { }
+
       virtual void run (const MatchFinder::MatchResult &Result) {
 
         if (const ValueDecl *VD = Result.Nodes.getNodeAs<ValueDecl>("valueDecl")) {
@@ -68,7 +69,6 @@ namespace {
             llvm::outs() << "Value Decl" << "\n";
             llvm::outs() << "Name: " << name << "\n";
             llvm::outs() << "Type: " << type << "\n";
-            m_currType = type;
           }
         }
 
@@ -77,6 +77,32 @@ namespace {
           if (type.compare("auto") == 0) {
             llvm::outs() << type << "\n";
             llvm::outs() << TL->getSourceRange().getBegin().printToString(*Result.SourceManager) << "\n";
+            llvm::outs() << "\n";
+          }
+        }
+      }
+    };
+
+    class DeautoWriteCallback : public MatchFinder::MatchCallback {
+
+    public:
+      DeautoWriteCallback(tooling::Replacements * replace) : Replace(replace) {
+        m_currType = "Not_Deduced";
+      }
+
+      virtual void run (const MatchFinder::MatchResult &Result) {
+
+        if (const ValueDecl *VD = Result.Nodes.getNodeAs<ValueDecl>("valueDecl")) {
+          string name = VD->getNameAsString();
+          string type = VD->getType().getAsString();
+          if (name.compare("main") != 0) {
+            m_currType = type;
+          }
+        }
+
+        if (const TypeLoc *TL = Result.Nodes.getNodeAs<TypeLoc>("typeLoc")) {
+          string type = TL->getType().getAsString();
+          if (type.compare("auto") == 0) {
             Replace->insert(
                       Replacement(
                         *Result.SourceManager,
@@ -84,9 +110,8 @@ namespace {
                           TL->getSourceRange()
                         ),
                         m_currType
-                        )
+                      )
             );
-            llvm::outs() << "\n";
           }
         }
       }
@@ -104,16 +129,26 @@ int main(int argc, const char **argv) {
   RefactoringTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
 
-  DeautoCallback deautoCB(&Tool.getReplacements());
+  DeautoReportCallback deautoRCB;
+  DeautoWriteCallback deautoWCB(&Tool.getReplacements());
 
   TypeMatcher atm = autoType().bind("autoType");
   TypeLocMatcher tlm = typeLoc(isExpansionInMainFile()).bind("typeLoc");
   DeclarationMatcher vm = valueDecl(isExpansionInMainFile()).bind("valueDecl");
 
   MatchFinder Finder;
-  Finder.addMatcher(atm, &deautoCB);
-  Finder.addMatcher(tlm, &deautoCB);
-  Finder.addMatcher(vm, &deautoCB);
 
-  return Tool.runAndSave(newFrontendActionFactory(&Finder).get());
+
+  if (Report) {
+    Finder.addMatcher(atm, &deautoRCB);
+    Finder.addMatcher(tlm, &deautoRCB);
+    Finder.addMatcher(vm, &deautoRCB);
+    return Tool.run(newFrontendActionFactory(&Finder).get());
+  }
+  else {
+    Finder.addMatcher(atm, &deautoWCB);
+    Finder.addMatcher(tlm, &deautoWCB);
+    Finder.addMatcher(vm, &deautoWCB);
+    return Tool.runAndSave(newFrontendActionFactory(&Finder).get());
+  }
 }
